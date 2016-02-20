@@ -18,6 +18,7 @@
 #define WORK_MODE   1
 
 #define FILTR_LIM   10
+#define OFF_TIME    40
 
 uint16_t CCR1_Val = 1000;
 uint16_t TimerPeriod = 0, Pulse = 0;
@@ -34,14 +35,16 @@ static void tmrInit(void);
 static void adcInit(void);
 static void outInit(void);
 
-static void powerOn(void);
+static void powerOn(void);  // индикация работоспособности устройства
 
 int main(void)
 {
     __IO uint16_t   tmpTmr = 0;
+    __IO uint16_t   offTmr = 0;
     __IO uint16_t   filtr[FILTR_LIM];
     __IO uint16_t   filtr_cnt = 0;
     __IO uint32_t   filtr_sum = 0;
+    __IO uint16_t   err_tmr = 0;
     int i = 0;
 
     tmrInit();
@@ -69,7 +72,7 @@ int main(void)
 
         if(curMode==WORK_MODE)
         {
-
+            // фильтр входного значения
             while(ADC_GetFlagStatus(ADC1, ADC_FLAG_EOC) == RESET);
             filtr[filtr_cnt++] = ADC_GetConversionValue(ADC1);
             if(filtr_cnt>=FILTR_LIM) {
@@ -78,19 +81,26 @@ int main(void)
                 for(i=0;i<FILTR_LIM;i++) {filtr_sum+=filtr[i];}
                 ADC1ConvertedValue = filtr_sum / FILTR_LIM;
             }
-            if(ADC1ConvertedValue>=getLimLevel()) GPIO_ResetBits(GPIOA, GPIO_Pin_9);
-            else GPIO_SetBits(GPIOA, GPIO_Pin_9);
+
+            // проверка короткого замыкания
+            if(ADC1ConvertedValue>=3750) {
+                err_tmr++;
+                // сигнальный светодиод - короткие вспышки
+                if(err_tmr>=90) {if(err_tmr>=100) err_tmr = 0;GPIO_ResetBits(GPIOA, GPIO_Pin_0);}else GPIO_SetBits(GPIOA, GPIO_Pin_0);
+                GPIO_SetBits(GPIOA, GPIO_Pin_9);    // выход - 0
+            }else {
+                GPIO_SetBits(GPIOA, GPIO_Pin_0);    // сигнальный светодиод - отключен
+                if(ADC1ConvertedValue>=getLimLevel()) {GPIO_ResetBits(GPIOA, GPIO_Pin_9);offTmr=0;} // проверка наличия пламени
+                else {if(offTmr<OFF_TIME) offTmr++;else GPIO_SetBits(GPIOA, GPIO_Pin_9);}   // отключение выхода с гистерезисом
+            }
 
             if(GPIO_ReadInputDataBit(GPIOB,GPIO_Pin_1)==Bit_RESET) tmpTmr++;else tmpTmr=0;
-            if(tmpTmr>=300) {
-                curMode = PROG_MODE;
-                tmpTmr = 0;
-            }
+            if(tmpTmr>=300) {curMode = PROG_MODE;tmpTmr = 0;}   // 3 секунды нажатие кнопки - переход в режим программирования
         }else if(curMode==PROG_MODE)
         {
-            tmpTmr++;
-            if(tmpTmr>=10) {tmpTmr=0;GPIOA->ODR ^= GPIO_Pin_0;}
-            if(GPIO_ReadInputDataBit(GPIOB,GPIO_Pin_1)==Bit_SET) {
+            tmpTmr++;if(tmpTmr>=10) {tmpTmr=0;GPIOA->ODR ^= GPIO_Pin_0;}    // частое мигание светодиода в режиме программирования
+            if(GPIO_ReadInputDataBit(GPIOB,GPIO_Pin_1)==Bit_SET) {  // отпускание кнопки - сохранение значения порога
+                // фильтр
                 filtr_cnt = 0;
                 while(filtr_cnt<FILTR_LIM) {
                     Delay(10);
@@ -100,9 +110,10 @@ int main(void)
                 filtr_cnt = 0;
                 filtr_sum = 0;
                 for(i=0;i<FILTR_LIM;i++) {filtr_sum+=filtr[i];}
-                setLimLevel((filtr_sum / FILTR_LIM)*0.95);
+                setLimLevel((filtr_sum / FILTR_LIM)*0.95);  // сохранение во Flash памяти
                 GPIO_SetBits(GPIOA, GPIO_Pin_0);
-                curMode = WORK_MODE;
+                offTmr = OFF_TIME;
+                curMode = WORK_MODE;    // переход в рабочий режим
                 tmpTmr = 0;
             }
         }

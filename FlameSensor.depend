@@ -197,6 +197,24 @@
 1455870238 source:d:\work\2016\flamesensor\src\system_stm32f0xx.c
 	"stm32f0xx.h"
 
-1455889233 source:d:\work\2016\flamesensor\src\main.c
+1455976813 source:d:\work\2016\flamesensor\src\main.c
 	"stm32f0xx_conf.h"
+	"settings.h"
+
+1454418036 source:d:\work\2016\flamesensor\src\eeprom.c
+	"eeprom.h"
+
+1455959711 d:\work\2016\flamesensor\inc\eeprom.h
+	"stm32f0xx.h"
+
+1455960468 source:d:\work\2016\flamesensor\src\settings.c
+	"settings.h"
+	"eeprom.h"
+
+1455959711 d:\work\2016\flamesensor\inc\settings.h
+
+1455959711 source:d:\work\2016\flamesensor\src\stm32f0xx_it.c
+	"stm32f0xx_it.h"
+
+1455959791 d:\work\2016\flamesensor\inc\stm32f0xx_it.h
 
